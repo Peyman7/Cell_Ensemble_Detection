@@ -58,11 +58,14 @@ pip install numpy scipy pandas quantities neo elephant pyspark
 ## How to Run the Pipeline
 
 ### 1. Prepare Data
-Ensure your input spike train data is stored in `.zip` files, with one file per task. Files should be named as `{task_id}.zip`.
+Ensure your input spike train data is stored in `.zip` files, with one file per task.
 
 ### 2. Submit the Job
 Use the provided Slurm script to submit the Spark job to Compute Canada:
 
+```bash
+cd CAD_ParallelProcess
+```
 ```bash
 sbatch submit_job_spark.sh
 ```
