@@ -4,7 +4,7 @@
 #SBATCH --time=15:59:59
 #SBATCH --output=/home/%u/scratch/peymannr/Results/spark-%u_%A_%a.out
 #SBATCH --error=/home/%u/scratch/peymannr/Results/spark-%u_%A_%a.error
-#SBATCH --array=17              # Array for batch tasks
+#SBATCH --array=1-20              # Array for batch tasks
 
 module load java
 module load python

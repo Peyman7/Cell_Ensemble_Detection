@@ -6,7 +6,7 @@
 #SBATCH --error=/home/%u/scratch/peymannr/Results/slurm-%u_%A_%a.error
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=p.nazarirobati@uleth.ca
-#SBATCH --array=17
+#SBATCH --array=1-20
 
 conda activate env
 conda create -n env
