@@ -30,6 +30,8 @@ from scipy.stats import f
 from elephant.utils import deprecated_alias
 from multiprocessing import Pool
 import zipfile
+from pyspark.sql import SparkSession
+from pyspark import SparkConf
 ################################ RUSSO CAD METHOD ##################################
 __all__ = [
     "cell_assembly_detection"
@@ -1027,46 +1029,24 @@ def spike_train2(spM, t_ss, t_es):
    
 #######################################CAD PARALLEL###################################################################    
 def CAD_p(spM):
-    
-    ### Create Q-matrix and CAD dictionaries
-    hist_dict= {"Q-Matrix":[], "bin_size":[]}
-    patt_list = []
-    
-    #### Parameters
     spike_train = spM['spike']
     t_ss = spM['t_st']
     t_es = spM['t_en']
     rat_num = spM['rat']
     rec_date = spM['date_rec']
-    max_lags = spM['lag']
     bin_size = spM['bin']
-    print('starting CAD on bin size: ', bin_size)
-    print('start time: ', t_ss)
-    print('end time: ', t_es)
-    ### Binning spike train neo object
-    spT_bin = conv.BinnedSpikeTrain(spike_train, bin_size= bin_size*pq.ms,t_start= t_ss*pq.ms, t_stop = t_es*pq.ms) # binned spike train (Input for Russo, 2017 CAD method)
 
-    ### Russo, 2017 Cell Assembly Detection
-    
-    patterns = cell_assembly_detection1(spT_bin, max_lag=max_lags)
-    for x in range(len(patterns)):
-      patterns[x]['bin_size'] = bin_size
-      patterns[x]['lags'] = np.array(patterns[x]['lags']).tolist()
-      patterns[x]['times'] = np.array(patterns[x]['times']).tolist()
-      patterns[x]['signature'] = patterns[x]['signature'].tolist()
-    print('saving file:', rat_num, rec_date, str(bin_size))
-    file_name_CAD_s = "CAD_" + rat_num + "_" + rec_date + "_" + str(bin_size) + ".pkl"                    
-    open_file = open(file_name_CAD_s, "wb")
-    pickle.dump(patterns, open_file)
-    open_file.close() 
-    #patt_list.append(patterns)
-   
-    # save detected assemblies at each bin size in separate files.
-    #file_name_CAD = "CAD_" + rat_num + "_" + rec_date + ".pkl"                    
-    #open_file = open(file_name_CAD, "wb")
-    #pickle.dump(patt_list, open_file)
-    #open_file.close() 
-    return patterns    
+    spT_bin = BinnedSpikeTrain(spike_train, bin_size=bin_size * pq.ms, t_start=t_ss * pq.ms, t_stop=t_es * pq.ms)
+
+    # Run cell assembly detection
+    patterns = cell_assembly_detection1(spT_bin, max_lag=spM['lag'])
+    for pattern in patterns:
+        pattern['bin_size'] = bin_size
+
+    file_name_CAD_s = f"CAD_{rat_num}_{rec_date}_{bin_size}.pkl"
+    with open(file_name_CAD_s, "wb") as f:
+        pickle.dump(patterns, f)
+    return patterns
 
 
 ###########################PARALLEL RUN ###################################################################
@@ -1079,7 +1059,7 @@ def process_spike_train(sp_list):
 
 ##################################MAIN CODE FOR READING DATA #############################################
 def main_assembly_detection_cc(runNum):
-    
+
     filename = f"{runNum}.zip"
     with zipfile.ZipFile(filename, 'r') as zip_ref:
         with zip_ref.open(f"{runNum}.pkl") as file:
@@ -1087,35 +1067,36 @@ def main_assembly_detection_cc(runNum):
     return data
 
 ############################################### MAIN CODE FOR RUNNING ####################################
+if __name__ == "__main__":
+    # Spark setup
+    conf = SparkConf().setAppName("CAD_Spark").setMaster("local[*]")  # Adjust master as needed
+    spark = SparkSession.builder.config(conf=conf).getOrCreate()
+    sc = spark.sparkContext
 
-if __name__ == '__main__':
-    # Ensure multiprocessing-safe setup
-    data = main_assembly_detection_cc(int(os.getenv('SLURM_ARRAY_TASK_ID', 0)))
+    # Read data
+    task_id = int(os.getenv('SLURM_ARRAY_TASK_ID', 0))
+    data = main_assembly_detection_cc(task_id)
+
     sp = data['spikes']
     t_s = data['times session'][0, 0]
     t_e = data['times session'][0, 1]
     rat_n = data['rat_num']
     date = data['date']
     bin_sizes = [30, 50, 70, 100, 250, 350, 500, 650, 850, 1000]
-    max_lags = 10
 
+    # Prepare data for parallel processing
     spT = spike_train2(sp, t_s, t_e)
-    splist = [dict([('spike', spT), ('t_st', t_s), ('t_en', t_e), ('rat', rat_n),
-                    ('date_rec', date), ('lag', max_lags), ('bin', b)]) for b in bin_sizes]
+    splist = [dict(spike=spT, t_st=t_s, t_en=t_e, rat=rat_n, date_rec=date, lag=10, bin=b) for b in bin_sizes]
 
-    ncpus = int(os.environ.get('SLURM_CPUS_PER_TASK', 1))
-    print(f"Using {ncpus} CPUs for parallel processing")
+    # Distribute tasks with Spark
+    rdd = sc.parallelize(splist)
+    results = rdd.map(CAD_p).collect()
 
-    tic = time.time()
-    with Pool(ncpus) as pool:
-        results = pool.map(process_spike_train, splist)
-    toc = time.time()
-
-    print(f"Parallel processing completed in {toc - tic:.2f} seconds")
-
-    # Save aggregated results
+    # Save final results
     file_name = f"CAD_{rat_n}_{date}.pkl"
     with open(file_name, "wb") as f:
         pickle.dump(results, f)
+
+    spark.stop()
 
 
