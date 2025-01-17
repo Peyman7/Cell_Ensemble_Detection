@@ -87,7 +87,7 @@ The Slurm script allocates resources (e.g., memory, CPUs, nodes) for the Spark a
 #SBATCH --time=15:59:59
 #SBATCH --output=/home/%u/scratch/peymannr/Results/spark-%u_%A_%a.out
 #SBATCH --error=/home/%u/scratch/peymannr/Results/spark-%u_%A_%a.error
-#SBATCH --array=17
+#SBATCH --array=1-20
 ```
 - Adjust the resource allocations as needed.
 
@@ -136,3 +136,6 @@ spark-submit --master yarn --num-executors 4 --executor-memory 16G main_assembly
 ```
 
 ---
+
+## Additional Notes
+Alternative codes for job array processing with using Spark are also provided, referred to as the `main_assembly_detection_spark.py` and `submit_job1.sh` files. 
