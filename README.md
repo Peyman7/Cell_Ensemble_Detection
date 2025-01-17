@@ -1,4 +1,4 @@
-# README: Cell Assembly Detection with Parallel Processing on Compute Canada
+# Cell Assembly Detection with Parallel Processing on Compute Canada
 
 ## Overview
 This project implements **cell assembly detection** using neural spike train data on the Compute Canada HPC cluster. The workflow combines the computational power of **Apache Spark** for distributed processing and **Slurm** for resource management, enabling scalable and efficient analysis of large-scale neural datasets.
